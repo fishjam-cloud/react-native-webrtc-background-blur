@@ -1,0 +1,12 @@
+node_modules/
+lib/
+build/
+.gradle/
+local.properties
+*.iml
+.idea/
+.DS_Store
+Pods/
+*.xcworkspace
+xcuserdata/
+DerivedData/

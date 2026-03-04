@@ -1,0 +1,25 @@
+{
+    "name": "@fishjam-cloud/react-native-webrtc-background-blur",
+    "version": "0.1.0",
+    "description": "Background blur video effect for @fishjam-cloud/react-native-webrtc",
+    "main": "index.ts",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/fishjam-cloud/react-native-webrtc-background-blur.git"
+    },
+    "homepage": "https://github.com/fishjam-cloud/react-native-webrtc-background-blur",
+    "keywords": [
+        "react-native",
+        "webrtc",
+        "background-blur",
+        "video-effects",
+        "fishjam"
+    ],
+    "peerDependencies": {
+        "@fishjam-cloud/react-native-client": "*",
+        "@fishjam-cloud/react-native-webrtc": "*",
+        "react": "*",
+        "react-native": "*"
+    }
+}
