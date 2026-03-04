@@ -24,6 +24,7 @@
 
     RTCVideoFrame *_lastProcessedFrame;
     BOOL _isProcessing;
+    BOOL _ready;
 }
 
 #pragma mark - Init
@@ -40,53 +41,140 @@
     CVReturn status = CVMetalTextureCacheCreate(kCFAllocatorDefault, nil, _device, nil, &_textureCache);
     if (status != kCVReturnSuccess) return nil;
 
-    NSError *error = nil;
-    id<MTLLibrary> library = [_device newDefaultLibraryWithBundle:[NSBundle bundleForClass:[self class]] error:&error];
-    if (!library) {
-        NSLog(@"[BackgroundBlurProcessor] Failed to load Metal library: %@", error);
-        return nil;
-    }
-
-    id<MTLFunction> nv12Func = [library newFunctionWithName:@"nv12ToBgra"];
-    id<MTLFunction> compositeFunc = [library newFunctionWithName:@"compositeKernel"];
-    if (!nv12Func || !compositeFunc) {
-        NSLog(@"[BackgroundBlurProcessor] Failed to load Metal functions");
-        return nil;
-    }
-
-    _nv12ToBgraPipeline = [_device newComputePipelineStateWithFunction:nv12Func error:&error];
-    _compositePipeline = [_device newComputePipelineStateWithFunction:compositeFunc error:&error];
-    if (!_nv12ToBgraPipeline || !_compositePipeline) {
-        NSLog(@"[BackgroundBlurProcessor] Failed to create pipeline states: %@", error);
-        return nil;
-    }
-
-    MTLSamplerDescriptor *samplerDesc = [[MTLSamplerDescriptor alloc] init];
-    samplerDesc.minFilter = MTLSamplerMinMagFilterLinear;
-    samplerDesc.magFilter = MTLSamplerMinMagFilterLinear;
-    samplerDesc.sAddressMode = MTLSamplerAddressModeClampToEdge;
-    samplerDesc.tAddressMode = MTLSamplerAddressModeClampToEdge;
-    _bilinearSampler = [_device newSamplerStateWithDescriptor:samplerDesc];
-
-    _blurKernel = [[MPSImageGaussianBlur alloc] initWithDevice:_device sigma:blurRadius];
-    _blurKernel.edgeMode = MPSImageEdgeModeClamp;
-
-    if (@available(iOS 15.0, *)) {
-        _segmentationRequest = [[VNGeneratePersonSegmentationRequest alloc] init];
-        _segmentationRequest.qualityLevel = VNGeneratePersonSegmentationRequestQualityLevelBalanced;
-        _segmentationRequest.outputPixelFormat = kCVPixelFormatType_OneComponent8;
-        _sequenceHandler = [[VNSequenceRequestHandler alloc] init];
-    }
-
     _isProcessing = NO;
+    _ready = NO;
+
+    [self warmUpPipelinesWithBlurRadius:blurRadius];
 
     return self;
+}
+
+- (void)warmUpPipelinesWithBlurRadius:(float)blurRadius {
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        NSBundle *classBundle = [NSBundle bundleForClass:[self class]];
+        NSBundle *shaderBundle = [NSBundle bundleWithURL:[classBundle URLForResource:@"BackgroundBlurShaders" withExtension:@"bundle"]];
+        if (!shaderBundle) {
+            shaderBundle = [NSBundle mainBundle];
+        }
+
+        NSURL *libraryURL = [shaderBundle URLForResource:@"default" withExtension:@"metallib"];
+        if (!libraryURL) {
+            NSLog(@"[BackgroundBlurProcessor] Metal library not found in bundle");
+            return;
+        }
+
+        NSError *error = nil;
+        id<MTLLibrary> library = [self->_device newLibraryWithURL:libraryURL error:&error];
+        if (!library) {
+            NSLog(@"[BackgroundBlurProcessor] Failed to load Metal library: %@", error);
+            return;
+        }
+
+        id<MTLFunction> nv12Func = [library newFunctionWithName:@"nv12ToBgra"];
+        id<MTLFunction> compositeFunc = [library newFunctionWithName:@"compositeKernel"];
+        if (!nv12Func || !compositeFunc) {
+            NSLog(@"[BackgroundBlurProcessor] Failed to load Metal functions");
+            return;
+        }
+
+        dispatch_group_t psoGroup = dispatch_group_create();
+        __block id<MTLComputePipelineState> nv12Pipeline = nil;
+        __block id<MTLComputePipelineState> compositePipeline = nil;
+
+        dispatch_group_enter(psoGroup);
+        [self->_device newComputePipelineStateWithFunction:nv12Func completionHandler:^(id<MTLComputePipelineState> pipeline, NSError *err) {
+            if (err) {
+                NSLog(@"[BackgroundBlurProcessor] Failed to create nv12 pipeline: %@", err);
+            }
+            nv12Pipeline = pipeline;
+            dispatch_group_leave(psoGroup);
+        }];
+
+        dispatch_group_enter(psoGroup);
+        [self->_device newComputePipelineStateWithFunction:compositeFunc completionHandler:^(id<MTLComputePipelineState> pipeline, NSError *err) {
+            if (err) {
+                NSLog(@"[BackgroundBlurProcessor] Failed to create composite pipeline: %@", err);
+            }
+            compositePipeline = pipeline;
+            dispatch_group_leave(psoGroup);
+        }];
+
+        MTLSamplerDescriptor *samplerDesc = [[MTLSamplerDescriptor alloc] init];
+        samplerDesc.minFilter = MTLSamplerMinMagFilterLinear;
+        samplerDesc.magFilter = MTLSamplerMinMagFilterLinear;
+        samplerDesc.sAddressMode = MTLSamplerAddressModeClampToEdge;
+        samplerDesc.tAddressMode = MTLSamplerAddressModeClampToEdge;
+        self->_bilinearSampler = [self->_device newSamplerStateWithDescriptor:samplerDesc];
+
+        self->_blurKernel = [[MPSImageGaussianBlur alloc] initWithDevice:self->_device sigma:blurRadius];
+        self->_blurKernel.edgeMode = MPSImageEdgeModeClamp;
+
+        if (@available(iOS 15.0, *)) {
+            self->_segmentationRequest = [[VNGeneratePersonSegmentationRequest alloc] init];
+            self->_segmentationRequest.qualityLevel = VNGeneratePersonSegmentationRequestQualityLevelBalanced;
+            self->_segmentationRequest.outputPixelFormat = kCVPixelFormatType_OneComponent8;
+            self->_sequenceHandler = [[VNSequenceRequestHandler alloc] init];
+
+            [self warmUpVisionModel];
+        }
+
+        dispatch_group_wait(psoGroup, DISPATCH_TIME_FOREVER);
+
+        if (!nv12Pipeline || !compositePipeline) {
+            NSLog(@"[BackgroundBlurProcessor] Pipeline creation failed, processor will not activate");
+            return;
+        }
+
+        self->_nv12ToBgraPipeline = nv12Pipeline;
+        self->_compositePipeline = compositePipeline;
+        self->_ready = YES;
+    });
+}
+
+- (void)warmUpVisionModel API_AVAILABLE(ios(15.0)) {
+    size_t warmUpWidth = 64;
+    size_t warmUpHeight = 64;
+    NSDictionary *attrs = @{
+        (id)kCVPixelBufferPixelFormatTypeKey: @(kCVPixelFormatType_420YpCbCr8BiPlanarFullRange),
+        (id)kCVPixelBufferWidthKey: @(warmUpWidth),
+        (id)kCVPixelBufferHeightKey: @(warmUpHeight),
+        (id)kCVPixelBufferIOSurfacePropertiesKey: @{},
+    };
+
+    CVPixelBufferRef dummyBuffer = NULL;
+    CVReturn result = CVPixelBufferCreate(
+        kCFAllocatorDefault, warmUpWidth, warmUpHeight,
+        kCVPixelFormatType_420YpCbCr8BiPlanarFullRange,
+        (__bridge CFDictionaryRef)attrs, &dummyBuffer);
+
+    if (result != kCVReturnSuccess || !dummyBuffer) return;
+
+    CVPixelBufferLockBaseAddress(dummyBuffer, 0);
+    for (size_t plane = 0; plane < CVPixelBufferGetPlaneCount(dummyBuffer); plane++) {
+        void *base = CVPixelBufferGetBaseAddressOfPlane(dummyBuffer, plane);
+        size_t h = CVPixelBufferGetHeightOfPlane(dummyBuffer, plane);
+        size_t bytesPerRow = CVPixelBufferGetBytesPerRowOfPlane(dummyBuffer, plane);
+        memset(base, 0, h * bytesPerRow);
+    }
+    CVPixelBufferUnlockBaseAddress(dummyBuffer, 0);
+
+    NSError *error = nil;
+    [_sequenceHandler performRequests:@[_segmentationRequest]
+                      onCVPixelBuffer:dummyBuffer
+                          orientation:kCGImagePropertyOrientationUp
+                                error:&error];
+
+    CVPixelBufferRelease(dummyBuffer);
 }
 
 #pragma mark - VideoFrameProcessorDelegate
 
 - (RTCVideoFrame *)capturer:(RTCVideoCapturer *)capturer didCaptureVideoFrame:(RTCVideoFrame *)frame {
     if (@available(iOS 15.0, *)) {} else {
+        return frame;
+    }
+
+    if (!_ready) {
         return frame;
     }
 

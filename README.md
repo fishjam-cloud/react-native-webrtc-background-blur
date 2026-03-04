@@ -25,19 +25,33 @@ This package requires the following peer dependencies:
 - `react`
 - `react-native`
 
+### iOS
+
+Requires iOS 15.0+. Metal, MetalPerformanceShaders, and Vision frameworks are linked automatically via the podspec.
+
+This package includes Metal shaders that require the Metal Toolchain. If you see:
+
+```
+error: cannot execute tool 'metal' due to missing Metal Toolchain
+```
+
+Install it with:
+
+```bash
+xcodebuild -downloadComponent MetalToolchain
+```
+
 ### Android
 
-ML Kit selfie segmentation model (~5 MB) is downloaded automatically on first use. To pre-download at install time, add to your `AndroidManifest.xml`:
+The ML Kit selfie segmentation model (~5 MB) is downloaded automatically on first use. No manual setup is required.
+
+To pre-download the model at install time instead, add to your `AndroidManifest.xml`:
 
 ```xml
 <meta-data
     android:name="com.google.mlkit.vision.DEPENDENCIES"
     android:value="selfie_segmentation" />
 ```
-
-### iOS
-
-Requires iOS 15.0+. Metal, MetalPerformanceShaders, and Vision frameworks are linked automatically via the podspec.
 
 ## Usage
 
@@ -66,12 +80,12 @@ The `useBackgroundBlur` hook integrates with `@fishjam-cloud/react-native-client
 You can also control the effect directly on a track without the hook:
 
 ```typescript
-import { mediaDevices } from '@fishjam-cloud/react-native-webrtc';
+import { mediaDevices } from "@fishjam-cloud/react-native-webrtc";
 
 const stream = await mediaDevices.getUserMedia({ video: true });
 const track = stream.getVideoTracks()[0];
 
-track._setVideoEffect('backgroundBlur');
+track._setVideoEffect("backgroundBlur");
 
 track._setVideoEffects([]);
 ```
@@ -192,9 +206,13 @@ public class MyEffectRegistrar extends ContentProvider {
 Then use from TypeScript:
 
 ```typescript
-track._setVideoEffect('myEffect');
+track._setVideoEffect("myEffect");
 ```
+
+## Contributing
+
+TODO:
 
 ## License
 
-MIT
+TODO:

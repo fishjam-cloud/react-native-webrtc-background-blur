@@ -1,1 +1,1 @@
-export { useBackgroundBlur } from './src/useBackgroundBlur';
+export { useBackgroundBlur } from "./src/useBackgroundBlur";
