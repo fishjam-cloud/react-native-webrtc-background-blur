@@ -22,12 +22,20 @@ Peer dependencies:
 The package is not yet published to npm. Install directly from GitHub:
 
 ```sh
-# npm
-npm install https://github.com/fishjam-cloud/react-native-webrtc-background-blur
-
-# yarn
-yarn add https://github.com/fishjam-cloud/react-native-webrtc-background-blur
+npm install @fishjam-cloud/react-native-webrtc-background-blur@github:fishjam-cloud/react-native-webrtc-background-blur
 ```
+
+Or add it manually to your `package.json`:
+
+```json
+{
+  "dependencies": {
+    "@fishjam-cloud/react-native-webrtc-background-blur": "github:fishjam-cloud/react-native-webrtc-background-blur"
+  }
+}
+```
+
+Then run `npm install` or `yarn install`.
 
 Then install iOS pods:
 
