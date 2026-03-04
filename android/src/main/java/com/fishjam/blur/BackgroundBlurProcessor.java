@@ -25,6 +25,8 @@ public class BackgroundBlurProcessor implements VideoFrameProcessor {
 
     private static final String TAG = "BackgroundBlurProcessor";
 
+    private static volatile float pendingBlurRadius = -1f;
+
     private final Segmenter segmenter;
     private final GlBlurRenderer renderer;
     private final MaskPostProcessor maskPostProcessor;
@@ -37,6 +39,10 @@ public class BackgroundBlurProcessor implements VideoFrameProcessor {
     private int maskByteBufferCapacity;
     private float[] rawFloatMask;
     private Bitmap segmentationBitmap;
+
+    public static void setBlurRadius(float radius) {
+        pendingBlurRadius = radius;
+    }
 
     public BackgroundBlurProcessor() {
         SelfieSegmenterOptions options = new SelfieSegmenterOptions.Builder()
@@ -87,6 +93,12 @@ public class BackgroundBlurProcessor implements VideoFrameProcessor {
 
     private VideoFrame processFrame(VideoFrame frame, VideoFrame.TextureBuffer textureBuffer,
                                     SurfaceTextureHelper textureHelper) throws Exception {
+        float radius = pendingBlurRadius;
+        if (radius >= 0f) {
+            pendingBlurRadius = -1f;
+            renderer.setBlurRadius(radius);
+        }
+
         int width = textureBuffer.getWidth();
         int height = textureBuffer.getHeight();
 

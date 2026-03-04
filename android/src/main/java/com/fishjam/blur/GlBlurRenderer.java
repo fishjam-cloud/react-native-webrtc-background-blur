@@ -349,6 +349,10 @@ public class GlBlurRenderer {
         GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
     }
 
+    public void setBlurRadius(float sigma) {
+        computeGaussianKernel(sigma);
+    }
+
     private void computeGaussianKernel(float sigma) {
         float sum = 0;
         for (int i = 0; i < 9; i++) {

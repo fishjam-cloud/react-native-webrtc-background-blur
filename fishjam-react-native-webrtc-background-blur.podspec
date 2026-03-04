@@ -13,7 +13,7 @@ Pod::Spec.new do |s|
 
   s.platforms    = { :ios => '15.0' }
 
-  s.source_files = 'ios/**/*.{h,m,metal}'
+  s.source_files = 'ios/**/*.{h,m,mm,metal}'
   s.frameworks   = 'Metal', 'MetalPerformanceShaders', 'Vision', 'CoreVideo'
 
   s.resource_bundles = {
@@ -23,6 +23,8 @@ Pod::Spec.new do |s|
   s.pod_target_xcconfig = {
     'METAL_LIBRARY_OUTPUT_DIR' => '${TARGET_BUILD_DIR}/BackgroundBlurShaders.bundle/'
   }
+
+  install_modules_dependencies(s)
 
   s.dependency 'FishjamReactNativeWebrtc'
 end

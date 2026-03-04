@@ -10,3 +10,6 @@ Pods/
 *.xcworkspace
 xcuserdata/
 DerivedData/
+ios/generated/
+android/generated/
+.yarn

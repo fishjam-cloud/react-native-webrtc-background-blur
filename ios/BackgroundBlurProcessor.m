@@ -380,6 +380,15 @@
     return texture;
 }
 
+#pragma mark - Configuration
+
+- (void)setBlurRadius:(float)blurRadius {
+    if (_device) {
+        _blurKernel = [[MPSImageGaussianBlur alloc] initWithDevice:_device sigma:blurRadius];
+        _blurKernel.edgeMode = MPSImageEdgeModeClamp;
+    }
+}
+
 #pragma mark - Dealloc
 
 - (void)dealloc {

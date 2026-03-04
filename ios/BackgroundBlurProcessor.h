@@ -11,5 +11,6 @@ API_AVAILABLE(ios(15.0))
 @interface BackgroundBlurProcessor : NSObject <VideoFrameProcessorDelegate>
 
 - (instancetype)initWithBlurRadius:(float)blurRadius;
+- (void)setBlurRadius:(float)blurRadius;
 
 @end

@@ -1,8 +1,7 @@
+#import "BlurRegistrar.h"
 #import "ProcessorProvider.h"
-#import "BackgroundBlurProcessor.h"
 
-@interface BlurRegistrar : NSObject
-@end
+static BackgroundBlurProcessor *_sharedProcessor = nil;
 
 @implementation BlurRegistrar
 
@@ -12,9 +11,14 @@
             initWithBlurRadius:12.0];
 
         if (blurProcessor) {
+            _sharedProcessor = blurProcessor;
             [ProcessorProvider addProcessor:blurProcessor forName:@"backgroundBlur"];
         }
     }
+}
+
++ (nullable BackgroundBlurProcessor *)sharedProcessor {
+    return _sharedProcessor;
 }
 
 @end
