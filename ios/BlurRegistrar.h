@@ -7,6 +7,7 @@ API_AVAILABLE(ios(15.0))
 @interface BlurRegistrar : NSObject
 
 + (nullable BackgroundBlurProcessor *)sharedProcessor;
++ (void)setSharedProcessor:(nullable BackgroundBlurProcessor *)processor;
 
 @end
 

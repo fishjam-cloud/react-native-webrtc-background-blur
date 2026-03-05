@@ -16,6 +16,7 @@ export function useBackgroundBlur(options: UseBackgroundBlurOptions = {}) {
 
   const blurMiddleware: TrackMiddleware = useCallback(
     (track: MediaStreamTrack) => {
+      NativeBackgroundBlur.initialize();
       if (options.blurRadius !== undefined) {
         NativeBackgroundBlur.setBlurRadius(options.blurRadius);
       }
@@ -25,6 +26,7 @@ export function useBackgroundBlur(options: UseBackgroundBlurOptions = {}) {
         track,
         onClear: () => {
           nativeTrack._setVideoEffects([]);
+          NativeBackgroundBlur.deinitialize();
         },
       };
     },
