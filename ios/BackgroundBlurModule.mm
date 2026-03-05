@@ -1,6 +1,6 @@
 #import "BackgroundBlurModule.h"
-#import "BlurRegistrar.h"
 #import "ProcessorProvider.h"
+#import "BackgroundBlurProcessor.h"
 
 #ifdef RCT_NEW_ARCH_ENABLED
 #import <React/RCTUtils.h>
@@ -12,7 +12,7 @@ RCT_EXPORT_MODULE(BackgroundBlur)
 
 RCT_EXPORT_METHOD(initialize) {
     if (@available(iOS 15.0, *)) {
-        if ([BlurRegistrar sharedProcessor] != nil) {
+        if ([ProcessorProvider getProcessor:@"backgroundBlur"] != nil) {
             return;
         }
 
@@ -21,22 +21,20 @@ RCT_EXPORT_METHOD(initialize) {
             return;
         }
 
-        [BlurRegistrar setSharedProcessor:processor];
         [ProcessorProvider addProcessor:processor forName:@"backgroundBlur"];
     }
 }
 
 RCT_EXPORT_METHOD(deinitialize) {
-    if ([BlurRegistrar sharedProcessor] == nil) {
+    if ([ProcessorProvider getProcessor:@"backgroundBlur"] == nil) {
         return;
     }
 
     [ProcessorProvider removeProcessor:@"backgroundBlur"];
-    [BlurRegistrar setSharedProcessor:nil];
 }
 
 RCT_EXPORT_METHOD(setBlurRadius:(double)radius) {
-    BackgroundBlurProcessor *processor = [BlurRegistrar sharedProcessor];
+    BackgroundBlurProcessor *processor = (BackgroundBlurProcessor *)[ProcessorProvider getProcessor:@"backgroundBlur"];
     if (processor) {
         [processor setBlurRadius:(float)radius];
     }

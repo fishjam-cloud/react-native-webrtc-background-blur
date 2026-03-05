@@ -1,5 +1,7 @@
 package com.fishjam.blur;
 
+import java.nio.ByteBuffer;
+
 public class MaskPostProcessor {
 
     private static final float BINARIZE_THRESHOLD = 0.5f;
@@ -10,7 +12,6 @@ public class MaskPostProcessor {
 
     private float[] smoothedMask;
     private float[] tempA;
-    private float[] tempB;
     private final float[] gaussianKernel;
     private int maskWidth;
     private int maskHeight;
@@ -24,15 +25,10 @@ public class MaskPostProcessor {
         ensureBuffers(w, h);
         int len = w * h;
 
-        binarize(rawMask, tempA, len);
-        erode(tempA, tempB, w, h);
-        dilate(tempB, tempA, w, h);
-        applyEMA(tempA, len);
-        threshold(smoothedMask, tempA, len);
-        gaussianBlurHorizontal(tempA, tempB, w, h);
-        gaussianBlurVertical(tempB, tempA, w, h);
-
-        System.arraycopy(tempA, 0, rawMask, 0, len);
+        morphologicalClean(rawMask, tempA, w, h);
+        applyEmaAndThreshold(tempA, rawMask, len);
+        gaussianBlurHorizontal(rawMask, tempA, w, h);
+        gaussianBlurVertical(tempA, rawMask, w, h);
     }
 
     public void reset() {
@@ -44,17 +40,24 @@ public class MaskPostProcessor {
             int len = w * h;
             smoothedMask = new float[len];
             tempA = new float[len];
-            tempB = new float[len];
             maskWidth = w;
             maskHeight = h;
             hasHistory = false;
         }
     }
 
-    private static void binarize(float[] src, float[] dst, int len) {
+    private static void binarizeInPlace(float[] mask, int len) {
         for (int i = 0; i < len; i++) {
-            dst[i] = src[i] > BINARIZE_THRESHOLD ? 1.0f : 0.0f;
+            mask[i] = mask[i] > BINARIZE_THRESHOLD ? 1.0f : 0.0f;
         }
+    }
+
+    private void morphologicalClean(float[] src, float[] dst, int w, int h) {
+        int len = w * h;
+        binarizeInPlace(src, len);
+        erode(src, dst, w, h);
+        dilate(dst, src, w, h);
+        System.arraycopy(src, 0, dst, 0, len);
     }
 
     private void erode(float[] src, float[] dst, int w, int h) {
@@ -63,12 +66,20 @@ public class MaskPostProcessor {
                 float min = 1.0f;
                 for (int dy = -1; dy <= 1; dy++) {
                     int ny = y + dy;
-                    if (ny < 0 || ny >= h) { min = 0.0f; continue; }
+                    if (ny < 0 || ny >= h) {
+                        min = 0.0f;
+                        continue;
+                    }
                     for (int dx = -1; dx <= 1; dx++) {
                         int nx = x + dx;
-                        if (nx < 0 || nx >= w) { min = 0.0f; continue; }
+                        if (nx < 0 || nx >= w) {
+                            min = 0.0f;
+                            continue;
+                        }
                         float v = src[ny * w + nx];
-                        if (v < min) min = v;
+                        if (v < min) {
+                            min = v;
+                        }
                     }
                 }
                 dst[y * w + x] = min;
@@ -95,21 +106,18 @@ public class MaskPostProcessor {
         }
     }
 
-    private void applyEMA(float[] current, int len) {
+    private void applyEmaAndThreshold(float[] current, float[] dst, int len) {
+        float oneMinusAlpha = 1.0f - EMA_ALPHA;
         if (!hasHistory) {
             System.arraycopy(current, 0, smoothedMask, 0, len);
             hasHistory = true;
         } else {
-            float oneMinusAlpha = 1.0f - EMA_ALPHA;
             for (int i = 0; i < len; i++) {
                 smoothedMask[i] = EMA_ALPHA * smoothedMask[i] + oneMinusAlpha * current[i];
             }
         }
-    }
-
-    private static void threshold(float[] src, float[] dst, int len) {
         for (int i = 0; i < len; i++) {
-            dst[i] = src[i] > THRESHOLD ? 1.0f : 0.0f;
+            dst[i] = smoothedMask[i] > THRESHOLD ? 1.0f : 0.0f;
         }
     }
 
@@ -155,5 +163,32 @@ public class MaskPostProcessor {
             kernel[i] /= sum;
         }
         return kernel;
+    }
+
+    public static void readAndClampMask(ByteBuffer source, float[] target, int length) {
+        for (int i = 0; i < length; i++) {
+            float value = source.getFloat();
+            if (value < 0f) {
+                target[i] = 0f;
+            } else if (value > 1f) {
+                target[i] = 1f;
+            } else {
+                target[i] = value;
+            }
+        }
+    }
+
+    public static void convertMaskToBytes(float[] source, int length, ByteBuffer target) {
+        target.clear();
+        for (int i = 0; i < length; i++) {
+            float value = source[i];
+            if (value < 0f) {
+                value = 0f;
+            } else if (value > 1f) {
+                value = 1f;
+            }
+            target.put((byte) (value * 255f));
+        }
+        target.rewind();
     }
 }

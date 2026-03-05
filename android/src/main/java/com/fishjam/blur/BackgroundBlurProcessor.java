@@ -93,11 +93,7 @@ public class BackgroundBlurProcessor implements VideoFrameProcessor {
 
     private VideoFrame processFrame(VideoFrame frame, VideoFrame.TextureBuffer textureBuffer,
                                     SurfaceTextureHelper textureHelper) throws Exception {
-        float radius = pendingBlurRadius;
-        if (radius >= 0f) {
-            pendingBlurRadius = -1f;
-            renderer.setBlurRadius(radius);
-        }
+        applyPendingBlurRadius();
 
         int width = textureBuffer.getWidth();
         int height = textureBuffer.getHeight();
@@ -117,11 +113,7 @@ public class BackgroundBlurProcessor implements VideoFrameProcessor {
         int segW = renderer.getSegmentationWidth();
         int segH = renderer.getSegmentationHeight();
 
-        if (segmentationBitmap == null
-                || segmentationBitmap.getWidth() != segW
-                || segmentationBitmap.getHeight() != segH) {
-            segmentationBitmap = Bitmap.createBitmap(segW, segH, Bitmap.Config.ARGB_8888);
-        }
+        ensureSegmentationBitmap(segW, segH);
         segmentationBitmap.copyPixelsFromBuffer(rgbaPixels);
 
         InputImage inputImage = InputImage.fromBitmap(segmentationBitmap, 0);
@@ -133,26 +125,16 @@ public class BackgroundBlurProcessor implements VideoFrameProcessor {
         floatMask.rewind();
 
         int requiredCapacity = maskWidth * maskHeight;
-        if (maskByteBuffer == null || maskByteBufferCapacity < requiredCapacity) {
-            maskByteBuffer = ByteBuffer.allocateDirect(requiredCapacity);
-            maskByteBuffer.order(ByteOrder.nativeOrder());
-            maskByteBufferCapacity = requiredCapacity;
-        }
+        ensureMaskByteBuffer(requiredCapacity);
         if (rawFloatMask == null || rawFloatMask.length < requiredCapacity) {
             rawFloatMask = new float[requiredCapacity];
         }
 
-        for (int i = 0; i < requiredCapacity; i++) {
-            rawFloatMask[i] = Math.min(Math.max(floatMask.getFloat(), 0f), 1f);
-        }
+        MaskPostProcessor.readAndClampMask(floatMask, rawFloatMask, requiredCapacity);
 
         maskPostProcessor.process(rawFloatMask, maskWidth, maskHeight);
 
-        maskByteBuffer.clear();
-        for (int i = 0; i < requiredCapacity; i++) {
-            maskByteBuffer.put((byte) (rawFloatMask[i] * 255));
-        }
-        maskByteBuffer.rewind();
+        MaskPostProcessor.convertMaskToBytes(rawFloatMask, requiredCapacity, maskByteBuffer);
 
         renderer.uploadMask(maskByteBuffer, maskWidth, maskHeight);
 
@@ -171,6 +153,36 @@ public class BackgroundBlurProcessor implements VideoFrameProcessor {
         );
 
         return new VideoFrame(outputBuffer, frame.getRotation(), frame.getTimestampNs());
+    }
+
+    private void applyPendingBlurRadius() {
+        float radius = pendingBlurRadius;
+        if (radius < 0f) {
+            return;
+        }
+        pendingBlurRadius = -1f;
+        renderer.setBlurRadius(radius);
+    }
+
+    private void ensureSegmentationBitmap(int width, int height) {
+        if (segmentationBitmap != null
+                && segmentationBitmap.getWidth() == width
+                && segmentationBitmap.getHeight() == height) {
+            return;
+        }
+        if (segmentationBitmap != null) {
+            segmentationBitmap.recycle();
+        }
+        segmentationBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+    }
+
+    private void ensureMaskByteBuffer(int requiredCapacity) {
+        if (maskByteBuffer != null && maskByteBufferCapacity >= requiredCapacity) {
+            return;
+        }
+        maskByteBuffer = ByteBuffer.allocateDirect(requiredCapacity);
+        maskByteBuffer.order(ByteOrder.nativeOrder());
+        maskByteBufferCapacity = requiredCapacity;
     }
 
     public void release() {

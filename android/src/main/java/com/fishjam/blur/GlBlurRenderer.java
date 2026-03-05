@@ -5,7 +5,6 @@ import android.opengl.GLES20;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.FloatBuffer;
 
 public class GlBlurRenderer {
 
@@ -75,43 +74,24 @@ public class GlBlurRenderer {
             "  gl_FragColor = vec4(mix(blurred.rgb, original.rgb, mask), 1.0);\n" +
             "}\n";
 
-    private static final float[] QUAD_COORDS = {
-            -1f, -1f,
-             1f, -1f,
-            -1f,  1f,
-             1f,  1f,
-    };
-
-    private static final float[] TEX_COORDS = {
-            0f, 0f,
-            1f, 0f,
-            0f, 1f,
-            1f, 1f,
-    };
-
     private static final int SEGMENTATION_WIDTH = 256;
     private static final int SEGMENTATION_HEIGHT = 144;
     private static final int BLUR_DOWNSCALE = 2;
 
-    private final FloatBuffer quadBuffer;
-    private final FloatBuffer texBuffer;
+    private final FullscreenQuad quad = new FullscreenQuad();
 
-    private int oesProgram;
-    private int rgbProgram;
-    private int passthroughProgram;
-    private int blurProgram;
-    private int compositeProgram;
+    private GlProgram oesProgram;
+    private GlProgram rgbProgram;
+    private GlProgram passthroughProgram;
+    private GlProgram blurProgram;
+    private GlProgram compositeProgram;
 
-    private int rgbaFbo;
-    private int rgbaTexture;
-    private int segFbo;
-    private int segTexture;
-    private int blurFboA;
-    private int blurTextureA;
-    private int blurFboB;
-    private int blurTextureB;
-    private int outputFbo;
-    private int outputTexture;
+    private GlFramebuffer rgbaFramebuffer;
+    private GlFramebuffer segmentationFramebuffer;
+    private GlFramebuffer blurFramebufferA;
+    private GlFramebuffer blurFramebufferB;
+    private GlFramebuffer outputFramebuffer;
+
     private int maskTexture;
 
     private int currentWidth;
@@ -124,8 +104,6 @@ public class GlBlurRenderer {
     private ByteBuffer segPixelBuffer;
 
     public GlBlurRenderer() {
-        quadBuffer = createFloatBuffer(QUAD_COORDS);
-        texBuffer = createFloatBuffer(TEX_COORDS);
         computeGaussianKernel(12.0f);
     }
 
@@ -141,85 +119,49 @@ public class GlBlurRenderer {
         currentWidth = width;
         currentHeight = height;
 
-        oesProgram = createProgram(VERTEX_SHADER, FRAGMENT_OES_TO_RGBA);
-        rgbProgram = createProgram(VERTEX_SHADER, FRAGMENT_PASSTHROUGH);
-        passthroughProgram = createProgram(VERTEX_SHADER_SIMPLE, FRAGMENT_PASSTHROUGH);
-        blurProgram = createProgram(VERTEX_SHADER_SIMPLE, FRAGMENT_BLUR);
-        compositeProgram = createProgram(VERTEX_SHADER_SIMPLE, FRAGMENT_COMPOSITE);
+        oesProgram = new GlProgram(VERTEX_SHADER, FRAGMENT_OES_TO_RGBA);
+        rgbProgram = new GlProgram(VERTEX_SHADER, FRAGMENT_PASSTHROUGH);
+        passthroughProgram = new GlProgram(VERTEX_SHADER_SIMPLE, FRAGMENT_PASSTHROUGH);
+        blurProgram = new GlProgram(VERTEX_SHADER_SIMPLE, FRAGMENT_BLUR);
+        compositeProgram = new GlProgram(VERTEX_SHADER_SIMPLE, FRAGMENT_COMPOSITE);
 
-        int[] result = createFboAndTexture(width, height);
-        rgbaFbo = result[0];
-        rgbaTexture = result[1];
+        rgbaFramebuffer = new GlFramebuffer(width, height);
+        segmentationFramebuffer = new GlFramebuffer(SEGMENTATION_WIDTH, SEGMENTATION_HEIGHT);
 
-        result = createFboAndTexture(SEGMENTATION_WIDTH, SEGMENTATION_HEIGHT);
-        segFbo = result[0];
-        segTexture = result[1];
+        int blurWidth = Math.max(1, width / BLUR_DOWNSCALE);
+        int blurHeight = Math.max(1, height / BLUR_DOWNSCALE);
+        blurFramebufferA = new GlFramebuffer(blurWidth, blurHeight);
+        blurFramebufferB = new GlFramebuffer(blurWidth, blurHeight);
+        outputFramebuffer = new GlFramebuffer(width, height);
 
-        int blurW = width / BLUR_DOWNSCALE;
-        int blurH = height / BLUR_DOWNSCALE;
-        result = createFboAndTexture(blurW, blurH);
-        blurFboA = result[0];
-        blurTextureA = result[1];
-
-        result = createFboAndTexture(blurW, blurH);
-        blurFboB = result[0];
-        blurTextureB = result[1];
-
-        result = createFboAndTexture(width, height);
-        outputFbo = result[0];
-        outputTexture = result[1];
-
-        maskTexture = createTexture2D();
+        maskTexture = GlFramebuffer.createTexture2D();
 
         initialized = true;
     }
 
     public void renderToRgbaFbo(int textureId, float[] transformMatrix, boolean isOes) {
-        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, rgbaFbo);
-        GLES20.glViewport(0, 0, currentWidth, currentHeight);
-
-        int program = isOes ? oesProgram : rgbProgram;
-        GLES20.glUseProgram(program);
-
-        int posLoc = GLES20.glGetAttribLocation(program, "aPosition");
-        int texLoc = GLES20.glGetAttribLocation(program, "aTexCoord");
-        int texMatLoc = GLES20.glGetUniformLocation(program, "uTexMatrix");
-        int samplerLoc = GLES20.glGetUniformLocation(program, "uTexture");
-
-        GLES20.glEnableVertexAttribArray(posLoc);
-        GLES20.glVertexAttribPointer(posLoc, 2, GLES20.GL_FLOAT, false, 0, quadBuffer);
-
-        GLES20.glEnableVertexAttribArray(texLoc);
-        GLES20.glVertexAttribPointer(texLoc, 2, GLES20.GL_FLOAT, false, 0, texBuffer);
-
-        GLES20.glUniformMatrix4fv(texMatLoc, 1, false, transformMatrix, 0);
-
-        GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
+        rgbaFramebuffer.bind();
+        GlProgram program = isOes ? oesProgram : rgbProgram;
+        program.use();
+        program.setUniformMatrix4("uTexMatrix", transformMatrix);
         int target = isOes ? GLES11Ext.GL_TEXTURE_EXTERNAL_OES : GLES20.GL_TEXTURE_2D;
-        GLES20.glBindTexture(target, textureId);
-        GLES20.glUniform1i(samplerLoc, 0);
-
-        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
-
-        GLES20.glDisableVertexAttribArray(posLoc);
-        GLES20.glDisableVertexAttribArray(texLoc);
-        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
+        program.bindTexture("uTexture", 0, textureId, target);
+        quad.draw(program);
+        GlFramebuffer.unbind();
     }
 
     public void renderDownscaled() {
-        drawTextureToFbo(passthroughProgram, rgbaTexture, segFbo, SEGMENTATION_WIDTH, SEGMENTATION_HEIGHT);
+        drawTexture(passthroughProgram, rgbaFramebuffer.getTextureId(), segmentationFramebuffer);
     }
 
     public ByteBuffer readSegmentationPixels() {
-        if (segPixelBuffer == null) {
-            segPixelBuffer = ByteBuffer.allocateDirect(SEGMENTATION_WIDTH * SEGMENTATION_HEIGHT * 4);
+        int requiredCapacity = SEGMENTATION_WIDTH * SEGMENTATION_HEIGHT * 4;
+        if (segPixelBuffer == null || segPixelBuffer.capacity() < requiredCapacity) {
+            segPixelBuffer = ByteBuffer.allocateDirect(requiredCapacity);
             segPixelBuffer.order(ByteOrder.nativeOrder());
         }
         segPixelBuffer.clear();
-        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, segFbo);
-        GLES20.glReadPixels(0, 0, SEGMENTATION_WIDTH, SEGMENTATION_HEIGHT,
-                GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, segPixelBuffer);
-        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
+        segmentationFramebuffer.readPixels(segPixelBuffer);
         segPixelBuffer.rewind();
         return segPixelBuffer;
     }
@@ -233,50 +175,25 @@ public class GlBlurRenderer {
     }
 
     public void renderBlur() {
-        int blurW = currentWidth / BLUR_DOWNSCALE;
-        int blurH = currentHeight / BLUR_DOWNSCALE;
-
-        drawTextureToFbo(passthroughProgram, rgbaTexture, blurFboA, blurW, blurH);
-
-        renderBlurPass(blurTextureA, blurFboB, blurW, blurH, 1.0f / blurW, 0.0f);
-        renderBlurPass(blurTextureB, blurFboA, blurW, blurH, 0.0f, 1.0f / blurH);
+        int blurWidth = blurFramebufferA.getWidth();
+        int blurHeight = blurFramebufferA.getHeight();
+        drawTexture(passthroughProgram, rgbaFramebuffer.getTextureId(), blurFramebufferA);
+        renderBlurPass(blurFramebufferA.getTextureId(), blurFramebufferB, 1.0f / blurWidth, 0.0f);
+        renderBlurPass(blurFramebufferB.getTextureId(), blurFramebufferA, 0.0f, 1.0f / blurHeight);
     }
 
     public void renderComposite() {
-        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, outputFbo);
-        GLES20.glViewport(0, 0, currentWidth, currentHeight);
-
-        GLES20.glUseProgram(compositeProgram);
-
-        int posLoc = GLES20.glGetAttribLocation(compositeProgram, "aPosition");
-        int texLoc = GLES20.glGetAttribLocation(compositeProgram, "aTexCoord");
-
-        GLES20.glEnableVertexAttribArray(posLoc);
-        GLES20.glVertexAttribPointer(posLoc, 2, GLES20.GL_FLOAT, false, 0, quadBuffer);
-        GLES20.glEnableVertexAttribArray(texLoc);
-        GLES20.glVertexAttribPointer(texLoc, 2, GLES20.GL_FLOAT, false, 0, texBuffer);
-
-        GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
-        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, rgbaTexture);
-        GLES20.glUniform1i(GLES20.glGetUniformLocation(compositeProgram, "uOriginal"), 0);
-
-        GLES20.glActiveTexture(GLES20.GL_TEXTURE1);
-        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, blurTextureA);
-        GLES20.glUniform1i(GLES20.glGetUniformLocation(compositeProgram, "uBlurred"), 1);
-
-        GLES20.glActiveTexture(GLES20.GL_TEXTURE2);
-        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, maskTexture);
-        GLES20.glUniform1i(GLES20.glGetUniformLocation(compositeProgram, "uMask"), 2);
-
-        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
-
-        GLES20.glDisableVertexAttribArray(posLoc);
-        GLES20.glDisableVertexAttribArray(texLoc);
-        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
+        outputFramebuffer.bind();
+        compositeProgram.use();
+        compositeProgram.bindTexture("uOriginal", 0, rgbaFramebuffer.getTextureId(), GLES20.GL_TEXTURE_2D);
+        compositeProgram.bindTexture("uBlurred", 1, blurFramebufferA.getTextureId(), GLES20.GL_TEXTURE_2D);
+        compositeProgram.bindTexture("uMask", 2, maskTexture, GLES20.GL_TEXTURE_2D);
+        quad.draw(compositeProgram);
+        GlFramebuffer.unbind();
     }
 
     public int getOutputTextureId() {
-        return outputTexture;
+        return outputFramebuffer.getTextureId();
     }
 
     public int getSegmentationWidth() {
@@ -288,65 +205,31 @@ public class GlBlurRenderer {
     }
 
     public void release() {
-        if (!initialized) return;
+        if (!initialized) {
+            return;
+        }
         releaseGlResources();
         segPixelBuffer = null;
         initialized = false;
     }
 
-    private void renderBlurPass(int inputTexture, int outputFbo, int width, int height,
-                                float dirX, float dirY) {
-        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, outputFbo);
-        GLES20.glViewport(0, 0, width, height);
-
-        GLES20.glUseProgram(blurProgram);
-
-        int posLoc = GLES20.glGetAttribLocation(blurProgram, "aPosition");
-        int texLoc = GLES20.glGetAttribLocation(blurProgram, "aTexCoord");
-
-        GLES20.glEnableVertexAttribArray(posLoc);
-        GLES20.glVertexAttribPointer(posLoc, 2, GLES20.GL_FLOAT, false, 0, quadBuffer);
-        GLES20.glEnableVertexAttribArray(texLoc);
-        GLES20.glVertexAttribPointer(texLoc, 2, GLES20.GL_FLOAT, false, 0, texBuffer);
-
-        GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
-        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, inputTexture);
-        GLES20.glUniform1i(GLES20.glGetUniformLocation(blurProgram, "uTexture"), 0);
-
-        GLES20.glUniform2f(GLES20.glGetUniformLocation(blurProgram, "uDirection"), dirX, dirY);
-        GLES20.glUniform1fv(GLES20.glGetUniformLocation(blurProgram, "uWeights"), 9, blurWeights, 0);
-        GLES20.glUniform1fv(GLES20.glGetUniformLocation(blurProgram, "uOffsets"), 9, blurOffsets, 0);
-
-        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
-
-        GLES20.glDisableVertexAttribArray(posLoc);
-        GLES20.glDisableVertexAttribArray(texLoc);
-        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
+    private void renderBlurPass(int inputTexture, GlFramebuffer outputFramebuffer, float dirX, float dirY) {
+        outputFramebuffer.bind();
+        blurProgram.use();
+        blurProgram.bindTexture("uTexture", 0, inputTexture, GLES20.GL_TEXTURE_2D);
+        blurProgram.setUniform2f("uDirection", dirX, dirY);
+        blurProgram.setUniform1fv("uWeights", blurWeights);
+        blurProgram.setUniform1fv("uOffsets", blurOffsets);
+        quad.draw(blurProgram);
+        GlFramebuffer.unbind();
     }
 
-    private void drawTextureToFbo(int program, int textureId, int fbo, int width, int height) {
-        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, fbo);
-        GLES20.glViewport(0, 0, width, height);
-
-        GLES20.glUseProgram(program);
-
-        int posLoc = GLES20.glGetAttribLocation(program, "aPosition");
-        int texLoc = GLES20.glGetAttribLocation(program, "aTexCoord");
-
-        GLES20.glEnableVertexAttribArray(posLoc);
-        GLES20.glVertexAttribPointer(posLoc, 2, GLES20.GL_FLOAT, false, 0, quadBuffer);
-        GLES20.glEnableVertexAttribArray(texLoc);
-        GLES20.glVertexAttribPointer(texLoc, 2, GLES20.GL_FLOAT, false, 0, texBuffer);
-
-        GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
-        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textureId);
-        GLES20.glUniform1i(GLES20.glGetUniformLocation(program, "uTexture"), 0);
-
-        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
-
-        GLES20.glDisableVertexAttribArray(posLoc);
-        GLES20.glDisableVertexAttribArray(texLoc);
-        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
+    private void drawTexture(GlProgram program, int textureId, GlFramebuffer outputFramebuffer) {
+        outputFramebuffer.bind();
+        program.use();
+        program.bindTexture("uTexture", 0, textureId, GLES20.GL_TEXTURE_2D);
+        quad.draw(program);
+        GlFramebuffer.unbind();
     }
 
     public void setBlurRadius(float sigma) {
@@ -366,77 +249,32 @@ public class GlBlurRenderer {
         }
     }
 
-    private int[] createFboAndTexture(int width, int height) {
-        int texture = createTexture2D();
-        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, texture);
-        GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGBA,
-                width, height, 0, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, null);
-        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, 0);
-
-        int[] fboId = new int[1];
-        GLES20.glGenFramebuffers(1, fboId, 0);
-        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, fboId[0]);
-        GLES20.glFramebufferTexture2D(GLES20.GL_FRAMEBUFFER, GLES20.GL_COLOR_ATTACHMENT0,
-                GLES20.GL_TEXTURE_2D, texture, 0);
-        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
-
-        return new int[]{fboId[0], texture};
-    }
-
-    private int createTexture2D() {
-        int[] texId = new int[1];
-        GLES20.glGenTextures(1, texId, 0);
-        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, texId[0]);
-        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR);
-        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR);
-        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE);
-        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE);
-        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, 0);
-        return texId[0];
-    }
-
-    private int createProgram(String vertexSource, String fragmentSource) {
-        int vertexShader = loadShader(GLES20.GL_VERTEX_SHADER, vertexSource);
-        int fragmentShader = loadShader(GLES20.GL_FRAGMENT_SHADER, fragmentSource);
-
-        int program = GLES20.glCreateProgram();
-        GLES20.glAttachShader(program, vertexShader);
-        GLES20.glAttachShader(program, fragmentShader);
-        GLES20.glLinkProgram(program);
-
-        GLES20.glDeleteShader(vertexShader);
-        GLES20.glDeleteShader(fragmentShader);
-
-        return program;
-    }
-
-    private int loadShader(int type, String source) {
-        int shader = GLES20.glCreateShader(type);
-        GLES20.glShaderSource(shader, source);
-        GLES20.glCompileShader(shader);
-        return shader;
-    }
-
     private void releaseGlResources() {
-        int[] textures = {rgbaTexture, segTexture, blurTextureA, blurTextureB, outputTexture, maskTexture};
-        GLES20.glDeleteTextures(textures.length, textures, 0);
+        rgbaFramebuffer.release();
+        segmentationFramebuffer.release();
+        blurFramebufferA.release();
+        blurFramebufferB.release();
+        outputFramebuffer.release();
 
-        int[] fbos = {rgbaFbo, segFbo, blurFboA, blurFboB, outputFbo};
-        GLES20.glDeleteFramebuffers(fbos.length, fbos, 0);
+        int[] textures = {maskTexture};
+        GLES20.glDeleteTextures(1, textures, 0);
+        maskTexture = 0;
 
-        GLES20.glDeleteProgram(oesProgram);
-        GLES20.glDeleteProgram(rgbProgram);
-        GLES20.glDeleteProgram(passthroughProgram);
-        GLES20.glDeleteProgram(blurProgram);
-        GLES20.glDeleteProgram(compositeProgram);
-    }
+        oesProgram.release();
+        rgbProgram.release();
+        passthroughProgram.release();
+        blurProgram.release();
+        compositeProgram.release();
 
-    private static FloatBuffer createFloatBuffer(float[] data) {
-        ByteBuffer bb = ByteBuffer.allocateDirect(data.length * 4);
-        bb.order(ByteOrder.nativeOrder());
-        FloatBuffer fb = bb.asFloatBuffer();
-        fb.put(data);
-        fb.position(0);
-        return fb;
+        rgbaFramebuffer = null;
+        segmentationFramebuffer = null;
+        blurFramebufferA = null;
+        blurFramebufferB = null;
+        outputFramebuffer = null;
+        oesProgram = null;
+        rgbProgram = null;
+        passthroughProgram = null;
+        blurProgram = null;
+        compositeProgram = null;
     }
 }
