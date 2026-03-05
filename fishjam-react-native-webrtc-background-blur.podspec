@@ -13,16 +13,8 @@ Pod::Spec.new do |s|
 
   s.platforms    = { :ios => '15.0' }
 
-  s.source_files = 'ios/**/*.{h,m,mm,metal}'
-  s.frameworks   = 'Metal', 'MetalPerformanceShaders', 'Vision', 'CoreVideo'
-
-  s.resource_bundles = {
-    'BackgroundBlurShaders' => ['ios/CocoaPodsBundledResourcePlaceholder']
-  }
-
-  s.pod_target_xcconfig = {
-    'METAL_LIBRARY_OUTPUT_DIR' => '${TARGET_BUILD_DIR}/BackgroundBlurShaders.bundle/'
-  }
+  s.source_files = 'ios/**/*.{h,m,mm}'
+  s.frameworks   = 'Vision', 'CoreVideo', 'CoreImage'
 
   install_modules_dependencies(s)
 

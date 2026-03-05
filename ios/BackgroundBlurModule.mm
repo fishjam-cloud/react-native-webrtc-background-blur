@@ -1,6 +1,6 @@
 #import "BackgroundBlurModule.h"
 #import "ProcessorProvider.h"
-#import "BackgroundBlurProcessor.h"
+#import "BackgroundBlurCIProcessor.h"
 
 #ifdef RCT_NEW_ARCH_ENABLED
 #import <React/RCTUtils.h>
@@ -16,7 +16,7 @@ RCT_EXPORT_METHOD(initialize) {
             return;
         }
 
-        BackgroundBlurProcessor *processor = [[BackgroundBlurProcessor alloc] initWithBlurRadius:12.0];
+        BackgroundBlurCIProcessor *processor = [[BackgroundBlurCIProcessor alloc] initWithBlurRadius:12.0];
         if (!processor) {
             return;
         }
@@ -34,7 +34,7 @@ RCT_EXPORT_METHOD(deinitialize) {
 }
 
 RCT_EXPORT_METHOD(setBlurRadius:(double)radius) {
-    BackgroundBlurProcessor *processor = (BackgroundBlurProcessor *)[ProcessorProvider getProcessor:@"backgroundBlur"];
+    BackgroundBlurCIProcessor *processor = (BackgroundBlurCIProcessor *)[ProcessorProvider getProcessor:@"backgroundBlur"];
     if (processor) {
         [processor setBlurRadius:(float)radius];
     }
