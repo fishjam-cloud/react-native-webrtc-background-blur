@@ -1,5 +1,5 @@
 import { type TrackMiddleware } from "@fishjam-cloud/react-native-client";
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import { Platform } from "react-native";
 import NativeBackgroundBlur from "./NativeBackgroundBlur";
 
@@ -9,17 +9,20 @@ type NativeMediaStreamTrack = MediaStreamTrack & {
 };
 
 type UseBackgroundBlurOptions = {
-  blurRadius?: number;
+  blurRadius: number;
 };
 
 NativeBackgroundBlur.initialize();
 
-export function useBackgroundBlur(options: UseBackgroundBlurOptions = {}) {
+export function useBackgroundBlur(
+  options: UseBackgroundBlurOptions = { blurRadius: 15 },
+) {
+  useEffect(() => {
+    NativeBackgroundBlur.setBlurRadius(options.blurRadius);
+  }, [options.blurRadius]);
+
   const blurMiddleware: TrackMiddleware = useCallback(
     (track: MediaStreamTrack) => {
-      if (options.blurRadius !== undefined) {
-        NativeBackgroundBlur.setBlurRadius(options.blurRadius);
-      }
       const nativeTrack = track as NativeMediaStreamTrack;
       nativeTrack._setVideoEffect("backgroundBlur");
       return {
