@@ -20,4 +20,4 @@ jobs:
       - run: corepack enable
       - run: yarn
       - run: yarn build
-      - run: yarn npm publish --access public
+      - run: npm publish --access public
