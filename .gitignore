@@ -12,3 +12,4 @@ DerivedData/
 ios/generated/
 android/generated/
 .yarn
+lib/
