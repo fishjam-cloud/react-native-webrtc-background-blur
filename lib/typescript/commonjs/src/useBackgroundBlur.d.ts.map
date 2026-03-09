@@ -1,1 +1,1 @@
-{"version":3,"file":"useBackgroundBlur.d.ts","sourceRoot":"","sources":["../../../../src/useBackgroundBlur.ts"],"names":[],"mappings":"AAaA,KAAK,wBAAwB,GAAG;IAC9B,UAAU,CAAC,EAAE,MAAM,CAAC;CACrB,CAAC;AAIF,wBAAgB,iBAAiB,CAAC,OAAO,GAAE,wBAA6B;;;EA4BvE"}
+{"version":3,"file":"useBackgroundBlur.d.ts","sourceRoot":"","sources":["../../../../src/useBackgroundBlur.ts"],"names":[],"mappings":"AAUA,KAAK,wBAAwB,GAAG;IAC9B,UAAU,EAAE,MAAM,CAAC;CACpB,CAAC;AAIF,wBAAgB,iBAAiB,CAC/B,OAAO,GAAE,wBAA6C;;EAwBvD"}

@@ -6,11 +6,11 @@ Uses on-device person segmentation — **Vision** (iOS) and **ML Kit** (Android)
 
 ## Requirements
 
-| Platform | Minimum version |
-| -------- | --------------- |
-| iOS      | 15.0            |
-| Android  | SDK 24          |
-| React Native | 0.74+       |
+| Platform     | Minimum version |
+| ------------ | --------------- |
+| iOS          | 15.0            |
+| Android      | SDK 24          |
+| React Native | 0.74+           |
 
 Peer dependencies:
 
@@ -47,42 +47,50 @@ cd ios && pod install
 
 ### `useBackgroundBlur`
 
-A React hook that integrates with `@fishjam-cloud/react-native-client`'s camera middleware system.
+A React hook that returns a camera middleware for background blur. You apply it yourself via `setCameraTrackMiddleware` from `useCamera`, which means you can combine it with other middlewares however you like.
 
 ```tsx
-import { useBackgroundBlur } from '@fishjam-cloud/react-native-webrtc-background-blur';
+import { useCamera } from "@fishjam-cloud/react-native-client";
+import { useBackgroundBlur } from "@fishjam-cloud/react-native-webrtc-background-blur";
 
 function CallScreen() {
-  const { toggleBlur, isBlurEnabled } = useBackgroundBlur({ blurRadius: 15 });
+  const { setCameraTrackMiddleware, currentCameraMiddleware } = useCamera();
+  const { blurMiddleware } = useBackgroundBlur({ blurRadius: 15 });
+
+  const isBlurEnabled = currentCameraMiddleware === blurMiddleware;
+
+  const toggleBlur = () =>
+    setCameraTrackMiddleware(isBlurEnabled ? null : blurMiddleware);
 
   return (
     <Button
-      title={isBlurEnabled ? 'Disable Blur' : 'Enable Blur'}
+      title={isBlurEnabled ? "Disable Blur" : "Enable Blur"}
       onPress={toggleBlur}
     />
   );
 }
 ```
 
+If you change `blurRadius` while blur is active, the new value takes effect the next time `setCameraTrackMiddleware(blurMiddleware)` is called with the updated middleware reference.
+
 #### Options
 
-| Option       | Type     | Default     | Description                        |
-| ------------ | -------- | ----------- | ---------------------------------- |
+| Option       | Type     | Default     | Description                                                 |
+| ------------ | -------- | ----------- | ----------------------------------------------------------- |
 | `blurRadius` | `number` | `undefined` | Gaussian blur sigma. Higher values produce a stronger blur. |
 
 #### Return value
 
-| Property       | Type         | Description                            |
-| -------------- | ------------ | -------------------------------------- |
-| `toggleBlur`   | `() => void` | Toggles background blur on/off.        |
-| `isBlurEnabled`| `boolean`    | Whether blur is currently active.      |
+| Property         | Type              | Description                                       |
+| ---------------- | ----------------- | ------------------------------------------------- |
+| `blurMiddleware` | `TrackMiddleware` | Middleware to pass to `setCameraTrackMiddleware`. |
 
 ### `NativeBackgroundBlur`
 
 Low-level native module for direct access:
 
 ```ts
-import { NativeBackgroundBlur } from '@fishjam-cloud/react-native-webrtc-background-blur';
+import { NativeBackgroundBlur } from "@fishjam-cloud/react-native-webrtc-background-blur";
 
 NativeBackgroundBlur.setBlurRadius(20);
 
