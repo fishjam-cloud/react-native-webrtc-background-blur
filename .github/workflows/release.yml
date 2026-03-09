@@ -1,0 +1,23 @@
+name: Publish Package to npm
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  publish-webrtc-background-blur:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      # Setup .npmrc file to publish to npm
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.4.1"
+          registry-url: "https://registry.npmjs.org"
+      - run: corepack enable
+      - run: yarn
+      - run: yarn build
+      - run: yarn npm publish --access public
