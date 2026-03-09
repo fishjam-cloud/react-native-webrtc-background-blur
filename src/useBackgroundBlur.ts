@@ -2,7 +2,7 @@ import {
   type TrackMiddleware,
   useCamera,
 } from "@fishjam-cloud/react-native-client";
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import { Platform } from "react-native";
 import NativeBackgroundBlur from "./NativeBackgroundBlur";
 
@@ -19,11 +19,13 @@ NativeBackgroundBlur.initialize();
 
 export function useBackgroundBlur(options: UseBackgroundBlurOptions = {}) {
   const { setCameraTrackMiddleware, currentCameraMiddleware } = useCamera();
+  const blurRadiusRef = useRef(options.blurRadius);
+  blurRadiusRef.current = options.blurRadius;
 
   const blurMiddleware: TrackMiddleware = useCallback(
     (track: MediaStreamTrack) => {
-      if (options.blurRadius !== undefined) {
-        NativeBackgroundBlur.setBlurRadius(options.blurRadius);
+      if (blurRadiusRef.current !== undefined) {
+        NativeBackgroundBlur.setBlurRadius(blurRadiusRef.current);
       }
       const nativeTrack = track as NativeMediaStreamTrack;
       nativeTrack._setVideoEffect("backgroundBlur");
@@ -37,7 +39,7 @@ export function useBackgroundBlur(options: UseBackgroundBlurOptions = {}) {
         },
       };
     },
-    [options.blurRadius],
+    [],
   );
 
   const isBlurEnabled = currentCameraMiddleware === blurMiddleware;
@@ -45,11 +47,15 @@ export function useBackgroundBlur(options: UseBackgroundBlurOptions = {}) {
     setCameraTrackMiddleware(isBlurEnabled ? null : blurMiddleware);
 
   const disableBlur = useCallback(() => {
-    setCameraTrackMiddleware(null);
-  }, [setCameraTrackMiddleware]);
+    if (currentCameraMiddleware === blurMiddleware) {
+      return setCameraTrackMiddleware(null);
+    }
+
+    return Promise.resolve();
+  }, [setCameraTrackMiddleware, blurMiddleware, currentCameraMiddleware]);
 
   const enableBlur = useCallback(() => {
-    setCameraTrackMiddleware(blurMiddleware);
+    return setCameraTrackMiddleware(blurMiddleware);
   }, [setCameraTrackMiddleware, blurMiddleware]);
 
   return { toggleBlur, isBlurEnabled, disableBlur, enableBlur };

@@ -74,8 +74,10 @@ function CallScreen() {
 
 | Property       | Type         | Description                            |
 | -------------- | ------------ | -------------------------------------- |
-| `toggleBlur`   | `() => void` | Toggles background blur on/off.        |
+| `toggleBlur`   | `() => Promise<void>` | Toggles background blur on/off.        |
 | `isBlurEnabled`| `boolean`    | Whether blur is currently active.      |
+| `enableBlur`   | `() => Promise<void>` | Enables background blur.               |
+| `disableBlur`  | `() => Promise<void>` | Disables background blur.              |
 
 ### `NativeBackgroundBlur`
 
