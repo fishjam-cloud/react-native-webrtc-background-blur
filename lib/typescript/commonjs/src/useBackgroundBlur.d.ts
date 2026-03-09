@@ -1,5 +1,5 @@
 type UseBackgroundBlurOptions = {
-    blurRadius?: number;
+    blurRadius: number;
 };
 export declare function useBackgroundBlur(options?: UseBackgroundBlurOptions): {
     blurMiddleware: (track: MediaStreamTrack) => import("@fishjam-cloud/react-client").MiddlewareResult | Promise<import("@fishjam-cloud/react-client").MiddlewareResult>;
