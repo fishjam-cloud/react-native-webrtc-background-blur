@@ -5,8 +5,8 @@ on:
     types: [published]
 
 permissions:
-  contents: read
   id-token: write
+  contents: read
 
 jobs:
   publish-webrtc-background-blur:
@@ -18,8 +18,7 @@ jobs:
         with:
           node-version: "24"
           registry-url: "https://registry.npmjs.org"
-      - run: npm config delete //registry.npmjs.org/:_authToken
       - run: corepack enable
       - run: yarn
       - run: yarn build
-      - run: npm publish --access public --provenance
+      - run: npm publish
