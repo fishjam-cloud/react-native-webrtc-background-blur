@@ -1,6 +1,6 @@
 {
   "name": "@fishjam-cloud/react-native-webrtc-background-blur",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Background blur video effect for @fishjam-cloud/react-native-webrtc",
   "main": "dist/commonjs/index.js",
   "module": "dist/module/index.js",
@@ -19,7 +19,7 @@
   },
   "files": [
     "dist",
-    "spec",
+    "src",
     "android",
     "ios",
     "fishjam-react-native-webrtc-background-blur.podspec",
@@ -46,7 +46,7 @@
   "codegenConfig": {
     "name": "RNBackgroundBlurSpec",
     "type": "modules",
-    "jsSrcsDir": "spec",
+    "jsSrcsDir": "src",
     "android": {
       "javaPackageName": "com.fishjam.blur"
     }
