@@ -4,21 +4,20 @@ on:
   release:
     types: [published]
 
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
   publish-webrtc-background-blur:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
+
     steps:
       - uses: actions/checkout@v4
-      # Setup .npmrc file to publish to npm
       - uses: actions/setup-node@v4
         with:
-          node-version: "24.4.1"
+          node-version: "24"
           registry-url: "https://registry.npmjs.org"
-      # Update npm to latest version for OIDC support
-      - run: npm install -g npm@11.11.0
       - run: corepack enable
       - run: yarn
       - run: yarn build
