@@ -18,6 +18,7 @@ jobs:
         with:
           node-version: "24"
           registry-url: "https://registry.npmjs.org"
+      - run: npm config delete //registry.npmjs.org/:_authToken
       - run: corepack enable
       - run: yarn
       - run: yarn build
