@@ -37,8 +37,6 @@ Then install iOS pods:
 cd ios && pod install
 ```
 
-The package is published on npm: [@fishjam-cloud/react-native-webrtc-background-blur](https://www.npmjs.com/package/@fishjam-cloud/react-native-webrtc-background-blur)
-
 ## Usage
 
 ### `useBackgroundBlur`
@@ -67,7 +65,7 @@ function CallScreen() {
 }
 ```
 
-Changing `blurRadius` takes effect immediately — the hook updates the native blur radius via a `useEffect` whenever the value changes.
+Changing `blurRadius` takes effect immediately — the hook updates the native blur radius whenever the value changes.
 
 #### Options
 
@@ -80,30 +78,6 @@ Changing `blurRadius` takes effect immediately — the hook updates the native b
 | Property         | Type              | Description                                       |
 | ---------------- | ----------------- | ------------------------------------------------- |
 | `blurMiddleware` | `TrackMiddleware` | Middleware to pass to `setCameraTrackMiddleware`. |
-
-### `NativeBackgroundBlur`
-
-Low-level native module for direct access:
-
-```ts
-import { NativeBackgroundBlur } from "@fishjam-cloud/react-native-webrtc-background-blur";
-
-NativeBackgroundBlur.initialize();
-NativeBackgroundBlur.setBlurRadius(20);
-
-const available: boolean = NativeBackgroundBlur.isAvailable();
-
-NativeBackgroundBlur.deinitialize();
-```
-
-#### Methods
-
-| Method                  | Description                                    |
-| ----------------------- | ---------------------------------------------- |
-| `initialize()`          | Initializes the native blur engine.            |
-| `deinitialize()`        | Releases native resources.                     |
-| `setBlurRadius(radius)` | Sets the Gaussian blur sigma.                  |
-| `isAvailable()`         | Returns `true` if blur is supported on device. |
 
 ## License
 
