@@ -12,6 +12,8 @@ Uses on-device person segmentation — **Vision** (iOS) and **ML Kit** (Android)
 | Android      | SDK 24          |
 | React Native | 0.74+           |
 
+Supports both old and new React Native architecture.
+
 Peer dependencies:
 
 - `@fishjam-cloud/react-native-client`
@@ -19,29 +21,23 @@ Peer dependencies:
 
 ## Installation
 
-The package is not yet published to npm. Install directly from GitHub:
+```sh
+npm install @fishjam-cloud/react-native-webrtc-background-blur
+```
+
+or
 
 ```sh
-npm install @fishjam-cloud/react-native-webrtc-background-blur@github:fishjam-cloud/react-native-webrtc-background-blur
+yarn add @fishjam-cloud/react-native-webrtc-background-blur
 ```
-
-Or add it manually to your `package.json`:
-
-```json
-{
-  "dependencies": {
-    "@fishjam-cloud/react-native-webrtc-background-blur": "github:fishjam-cloud/react-native-webrtc-background-blur"
-  }
-}
-```
-
-Then run `npm install` or `yarn install`.
 
 Then install iOS pods:
 
 ```sh
 cd ios && pod install
 ```
+
+The package is published on npm: [@fishjam-cloud/react-native-webrtc-background-blur](https://www.npmjs.com/package/@fishjam-cloud/react-native-webrtc-background-blur)
 
 ## Usage
 
@@ -71,13 +67,13 @@ function CallScreen() {
 }
 ```
 
-If you change `blurRadius` while blur is active, the new value takes effect the next time `setCameraTrackMiddleware(blurMiddleware)` is called with the updated middleware reference.
+Changing `blurRadius` takes effect immediately — the hook updates the native blur radius via a `useEffect` whenever the value changes.
 
 #### Options
 
-| Option       | Type     | Default     | Description                                                 |
-| ------------ | -------- | ----------- | ----------------------------------------------------------- |
-| `blurRadius` | `number` | `undefined` | Gaussian blur sigma. Higher values produce a stronger blur. |
+| Option       | Type     | Default | Description                                                 |
+| ------------ | -------- | ------- | ----------------------------------------------------------- |
+| `blurRadius` | `number` | `15`    | Gaussian blur sigma. Higher values produce a stronger blur. |
 
 #### Return value
 
@@ -92,10 +88,22 @@ Low-level native module for direct access:
 ```ts
 import { NativeBackgroundBlur } from "@fishjam-cloud/react-native-webrtc-background-blur";
 
+NativeBackgroundBlur.initialize();
 NativeBackgroundBlur.setBlurRadius(20);
 
 const available: boolean = NativeBackgroundBlur.isAvailable();
+
+NativeBackgroundBlur.deinitialize();
 ```
+
+#### Methods
+
+| Method                  | Description                                    |
+| ----------------------- | ---------------------------------------------- |
+| `initialize()`          | Initializes the native blur engine.            |
+| `deinitialize()`        | Releases native resources.                     |
+| `setBlurRadius(radius)` | Sets the Gaussian blur sigma.                  |
+| `isAvailable()`         | Returns `true` if blur is supported on device. |
 
 ## License
 
