@@ -1,3 +1,5 @@
+![Fishjam](.github/images/fishjam-banner.png)
+
 # @fishjam-cloud/react-native-webrtc-background-blur
 
 [![Ad](https://swm-delivery.com/www/images/zone-gh-fishjam-1?n=1)](https://swm-delivery.com/www/delivery/ck.php?zoneid=zone-gh-fishjam-1&n=1)
